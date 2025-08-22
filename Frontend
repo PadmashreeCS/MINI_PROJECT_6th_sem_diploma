@@ -1,0 +1,1164 @@
+from tkinter import *
+from ApplicationServices import servicevalidation
+from ApplicaionConstants import applicationconstant
+from PIL import Image,ImageTk
+import random
+from BackEnd import Ai_boot_BE
+import datetime
+import bcrypt
+import pandas as pd
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import pandas as pd
+from sklearn.decomposition import TruncatedSVD
+from sklearn.metrics.pairwise import cosine_similarity
+import openpyxl
+from tkinter import messagebox
+from tkinter import ttk
+from sklearn.ensemble import RandomForestRegressor
+import numpy as np
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import tkinter as tk
+from matplotlib.figure import Figure
+
+global frist_page
+frist_page = Tk()
+frist_page.geometry('800x600')
+frist_page.state('zoomed')
+
+
+def verify_password(email, password):
+    try:
+        data = pd.read_csv("D:/Full Stack Development/Final Project/FrontEnd/DataBase/employee_email_password.csv")  # Load email/hashed password data
+        user_data = data[data['GMAIL'] == email]
+        if not user_data.empty:
+            hashed_password = user_data.iloc[0]['PASSWORD'].encode('utf-8')  # Ensure bytes
+            return bcrypt.checkpw(password.encode('utf-8'), hashed_password)  # Ensure bytes
+        else:
+            return False  # Email not found
+    except FileNotFoundError:
+        # print("Error: employee_emailid_password.csv not found.")
+        return False
+    except Exception as e:
+        # print(f"Error during password verification: {e}")
+        return False
+
+def check_email_exists(email):
+    try:
+        data = pd.read_csv("D:/Full Stack Development/Final Project/FrontEnd/DataBase/employee_email_password.csv")  # Load email/hashed password data
+        return email in data['GMAIL'].values
+    except FileNotFoundError:
+        print("Error: employee_emailid_password.csv not found.")
+        return False
+    except Exception as e:
+        print(f"Error during email existence check: {e}")
+        return False
+
+
+def set_background_image_canvas(window, image_path):
+    try:
+        img = Image.open(image_path)
+        img = img.resize((window.winfo_screenwidth(), window.winfo_screenheight()), Image.LANCZOS)
+        img_tk = ImageTk.PhotoImage(img)
+
+        canvas = Canvas(window, width=window.winfo_screenwidth(), height=window.winfo_screenheight())
+        canvas.place(x=0, y=0)
+        canvas.create_image(0, 0, image=img_tk, anchor="nw")
+        canvas.image = img_tk  # Keep a reference
+
+    except FileNotFoundError:
+        print(f"Error: Image file '{image_path}' not found.")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+backgroung_image = "D:/Full Stack Development/Final Project/FrontEnd/background.jpg"  # Replace with your image path
+set_background_image_canvas(frist_page, backgroung_image)
+
+chatlist=[]
+
+def reset_search(search_entry):
+    search_entry.delete(0, END)  # Clear the entry field
+    search_display.config(text="", fg="red")
+
+def insertdataindatabase():
+    db_config = {
+        "host": "localhost",  # Replace with your MySQL host
+        "user": "root",  # Replace with your MySQL user
+        "password": "SLAP@123",  # Replace with your MySQL password
+        "database": "mydb", # Replace with your database. start_timming
+    }
+    Ai_boot_BE.login_details_indatabase(num,chatlist,frist_page,start_timming,ending_timming)
+    Ai_boot_BE.login_details_mysql(chatlist,db_config,num)
+    Ai_boot_BE.print_all_mysql_data(db_config)
+
+def checkevent(event):
+    if len(eventlist)==event:
+        return True
+    else:
+        return False
+     
+def error_message(text):  
+    for i in text:
+        display_time_ms = 3000
+        label=Label(frist_page,text=i,font=("Arial Bold",25),fg="red")
+        label.place(x=1000,y=700)
+        frist_page.after(display_time_ms, label.destroy)
+        
+def close_frame(heading_frame):
+    heading_frame.destroy() 
+    #search_label.destroy() 
+    #close_button.destroy() 
+    entry.config(state=NORMAL)
+    sent_button.config(state=NORMAL)
+    Dashboard_button.config(state=NORMAL)
+    
+
+def frame_condision():
+    image = Image.open("D:/Full Stack Development/Final Project/FrontEnd/reset_image.jpg")  # Replace with your image path
+    image = image.resize((50, 50), Image.LANCZOS)  # Resize as needed
+    photo = ImageTk.PhotoImage(image)
+    
+    Button(search_frame,text="\u00D7",command=lambda: close_frame(search_frame),bg="red", fg="black",width=2,pady=-10,font=("Calibri Bold", 15),padx=-20).place(x=1160,y=9)
+    entry.config(state=DISABLED)
+    sent_button.config(state=DISABLED)
+    Button(search_frame,text="\u27F3 Reset",command=lambda: reset_search(search_entry), bg="skyblue",height=2).place(x=1050,y=9)
+    
+def frame_search(text):
+    global search_frame, search_entry, search_display
+    search_frame= Frame(frist_page,bg='white',bd=5)
+    search_display=Label(search_frame,text="",font=("Arial Bold",15),fg="red")
+    search_display.place(x=500,y=150)
+        
+    def check_and_display():
+        current_text = search_entry.get()
+        if not current_text:  # Check if the entry is empty
+            search_entry.insert(0, default_message)  # Display the message
+        else:
+            search_status=Ai_boot_BE.search_employee(search_entry)
+            if search_status != -1:
+                text=[f"Highlighted in tabel"]
+                for i in text:
+                    search_display.config(text=i,fg="black")
+                    
+            else:
+                text=["Employee Not Exit"]
+                for i in text:
+                    search_display.config(text=i,fg="red")
+                
+            
+
+    def clear_message(event): # clear message when user click in entry field
+        if search_entry.get() == default_message:
+            search_entry.delete(0,END)
+            
+    
+    search_frame.place(x=200,y=100,height=600,width=1200) 
+    Label(search_frame,text=text,font=("Arial Bold",25),fg="blue").place(x=500,y=10)
+    #search_frame.pack(fill=BOTH, expand=True)
+    csv_display_frame = Frame(search_frame)
+    csv_display_frame.place(x=0,y=200,height=400,width=1200) 
+    
+    csv_file_path = "D:/Full Stack Development/Final Project/FrontEnd/DataBase/Employee_Search.csv"  # Replace with your actual path
+    if csv_file_path: # Check if the path is provided
+        Ai_boot_BE.load_csv_from_path(csv_display_frame, csv_file_path)
+    else: # If not, you could show a message or handle it differently
+        messagebox.showinfo("No File Path", "No CSV file path provided.  Set 'csv_file_path' to load a file.")
+    
+    search_entry = Entry(search_frame,bg="white",font=("Calibri Bold", 25))
+    search_entry.place(x=300,y=100)
+    check_button = Button(search_frame, text="Search", command=check_and_display,width=10,height=0,font=("Calibri Bold", 20))
+    check_button.place(x=900,y=100)
+    search_entry.bind("<FocusIn>", clear_message) 
+    default_message = "Enter Employee ID"
+    search_entry.insert(0, default_message)
+    #frist_page.bind("<FocusOut>", lambda event: check_and_display())
+
+    frame_condision()
+    
+    
+def frame_generate_payrole(text):
+    global generate_frame,generate_label
+    generate_frame= Frame(frist_page,bg='white',bd=5)
+    generate_frame.place(x=200,y=100,height=600,width=1200) 
+    search_display=Label(generate_frame,text="Employee ID:",font=("Arial Bold",20))
+    search_display.place(x=320,y=100)
+    search_entry_generate = Entry(generate_frame,width=20,font=("TkDefaultFont", 17))
+    search_entry_generate.place(x=620,y=100)
+    generate_label=Label(generate_frame,text=text,font=("Arial Bold",25),fg="blue")
+    generate_label.place(x=400,y=5)
+    
+    Button(generate_frame,text="\u00D7",command=lambda: close_frame(generate_frame),bg="red", fg="black",width=2,pady=-10,font=("Calibri Bold", 15),padx=-20).place(x=1160,y=9)
+    entry.config(state=DISABLED)
+    sent_button.config(state=DISABLED)
+
+    search_button = Button(generate_frame, text="Search", command=lambda: Ai_boot_BE.pay_search(search_entry_generate,amount_entry,reduce_entry,netpay_entry,generate_button,textvariable_entry),width=7,height=0,font=("Calibri Bold", 15))
+    search_button.place(x=950,y=100)
+    
+    data_frame = Label(generate_frame, text="Employee Salary Details:-",font=("Arial", 15))
+    data_frame.place(x=100,y=150)
+
+    amount_label = Label(generate_frame, text="Amount:",font=("Calibri",15)) 
+    amount_label.place(x=150,y=200)
+    amount_entry = Entry(generate_frame, state=DISABLED,font=("TkDefaultFont", 15))  # Start disabled
+    amount_entry.place(x=300,y=200)
+    
+    def get_current_month_and_year(month_format="%B", year_format="%Y"):
+        now = datetime.datetime.now()
+        month = now.strftime(month_format)
+        year = now.strftime(year_format)
+        return month, year
+    
+    full_month_name, current_year = get_current_month_and_year()
+
+    reduce_label = Label(generate_frame, text="Reduce:",font=("Calibri",15))
+    reduce_label.place(x=150,y=250)
+    reduce_entry =Entry(generate_frame, state=DISABLED,font=("TkDefaultFont", 15))
+    reduce_entry.place(x=300,y=250)
+    
+    netpay_label = Label(generate_frame, text="Net Pay:",font=("Calibri",15))
+    netpay_label.place(x=150,y=300)
+    netpay_entry =Entry(generate_frame, state=DISABLED,font=("TkDefaultFont", 15))
+    netpay_entry.place(x=300,y=300)
+    
+    textvariable_label = Label(generate_frame, text="Text Variable:",font=("Calibri",15))
+    textvariable_label.place(x=150,y=350)
+    textvariable_entry =Entry(generate_frame, state=DISABLED,font=("TkDefaultFont", 15))
+    textvariable_entry.place(x=300,y=350)
+    #frame_condision()
+    
+    share_button =Button(generate_frame, text="Share", command=lambda: Ai_boot_BE.send_payroll_email("padmashree.0609@gmail.com", "Payroll Generation", "Download The Pdf",search_entry_generate,full_month_name, current_year),width=10,height=0,font=("Calibri Bold", 20),state=DISABLED) # Start disabled
+    share_button.place(x=300,y=500) #status=DISABLED
+    
+    generate_button =Button(generate_frame, text="Generate", command=lambda: Ai_boot_BE.generate_payrole(search_entry_generate,full_month_name, current_year,generate_frame,share_button), state=DISABLED,width=10,height=0,font=("Calibri Bold", 20)) # Start disabled
+    generate_button.place(x=900,y=500)
+    
+    file_path="C:/Users/saravanan/Desktop/Niroop_Payroll_March_2025.pdf"
+    
+    
+    
+    
+
+def frame_update(heading):
+    search_update= Frame(frist_page,bg='white',bd=5)
+    search_update.place(x=200,y=100,height=600,width=1200) 
+    search_display=Label(search_update,text="Employee ID:",font=("Arial Bold",20))
+    search_display.place(x=320,y=100)
+    search_entry_update = Entry(search_update,width=20,font=("TkDefaultFont", 17))
+    search_entry_update.place(x=620,y=100)
+    search_label=Label(search_update,text="Employee Profile",font=("Arial Bold",25),fg="blue")
+    search_label.place(x=400,y=5)
+    
+    data_frame = Label(search_update, text="Employee Details:-",font=("Arial", 15))
+    data_frame.place(x=100,y=150)
+
+    name_label = Label(search_update, text="Name:",font=("Calibri",15)) 
+    name_label.place(x=150,y=200)
+    name_entry = Entry(search_update, state=DISABLED,font=("TkDefaultFont", 15))  # Start disabled
+    name_entry.place(x=300,y=200)
+
+    jobtitle_label = Label(search_update, text="Job Title:",font=("Calibri",15))
+    jobtitle_label.place(x=150,y=250)
+    jobtitle_entry =Entry(search_update, state=DISABLED,font=("TkDefaultFont", 15))
+    jobtitle_entry.place(x=300,y=250)   
+
+    department_label = Label(search_update, text="Department:",font=("Calibri",15))
+    department_label.place(x=150,y=300)
+    dept_entry =Entry(search_update, state=DISABLED,font=("TkDefaultFont", 15))
+    dept_entry.place(x=300,y=300)
+    
+    business_label = Label(search_update, text="Business Unit:",font=("Calibri",15))
+    business_label.place(x=150,y=350)
+    business_entry =Entry(search_update, state=DISABLED,font=("TkDefaultFont", 15))
+    business_entry.place(x=300,y=350)
+    
+    annual_label = Label(search_update, text="Annual Salary:",font=("Calibri",15))
+    annual_label.place(x=150,y=400)
+    annual_entry =Entry(search_update, state=DISABLED,font=("TkDefaultFont", 15))
+    annual_entry.place(x=300,y=400)
+    
+    bonus_label = Label(search_update, text="Bonus %:",font=("Calibri",15))
+    bonus_label.place(x=150,y=450)
+    bonus_entry =Entry(search_update, state=DISABLED,font=("TkDefaultFont", 15))
+    bonus_entry.place(x=300,y=450)
+
+    update_button =Button(search_update, text="Update", command=lambda: Ai_boot_BE.update_employee(search_entry_update,name_entry,dept_entry,update_button,jobtitle_entry,business_entry,annual_entry,bonus_entry), state=DISABLED,width=10,height=0,font=("Calibri Bold", 20)) # Start disabled
+    update_button.place(x=900,y=500 )# Adjust row as needed
+
+    Button(search_update,text="\u00D7",command=lambda: close_frame(search_update),bg="red", fg="black",width=2,pady=-10,font=("Calibri Bold", 15),padx=-20).place(x=1160,y=9)
+    entry.config(state=DISABLED)
+    sent_button.config(state=DISABLED)
+
+    search_button = Button(search_update, text="Search", command=lambda: Ai_boot_BE.search_employee_update(search_entry_update, name_entry, dept_entry, update_button,jobtitle_entry,business_entry,annual_entry,bonus_entry),width=7,height=0,font=("Calibri Bold", 15))
+    search_button.place(x=950,y=100)
+    
+
+def checkforemail(display):
+    return servicevalidation.validateemailid(display,applicationconstant.VALIDDOMAIN)
+    
+def checkforpassword(display):
+    return servicevalidation.validatepassword(display)
+    
+start_timming = None  # Initialize start_timming globally
+ending_timming = None 
+
+def switchImplementation(argument, display):
+    global suggestion_listbox
+    global start_timming, ending_timming
+    global entry  # Assuming 'entry' is a global Entry widget
+    global frist_page  # Assuming 'frist_page' is your main frame
+    global start  # Assuming 'start' is a label for messages
+
+    text = ["Inproper Event"]
+    match argument:
+        case 0:
+            return "zero"
+        case 1:
+            if checkevent(0):
+                # start.config(text=f"Your request id: {num}")
+                start.config(text="Verify Yourself")
+                text = ["Enter EmailID"]
+                excecuteCode(text)
+                eventlist.append(1)
+                
+                def load_emails_from_excel(
+                    filename="D:/Full Stack Development/Final Project/FrontEnd/DataBase/database.xlsx",
+                    sheet_name="Sheet1", column_index=2):
+                    """Loads email addresses from an Excel file using openpyxl."""
+                    try:
+                        workbook = openpyxl.load_workbook(filename)
+                        sheet = workbook[sheet_name]
+                        emails = [sheet.cell(row=row, column=column_index + 1).value for row in
+                                  range(1, sheet.max_row + 1)]
+                        return emails
+                    except FileNotFoundError:
+                        print(f"Error: File '{filename}' not found.")
+                        return
+                    except openpyxl.utils.exceptions.InvalidFileException:
+                        print(f"Error: Could not open '{filename}' as an Excel file.")
+                        return
+ 
+                employee_emails = load_emails_from_excel()
+                
+                suggestion_listbox = Listbox(frist_page, width=30, font=("Calibri Bold", 12))
+                suggestion_listbox.config(height=0)
+                entry.bind("<KeyRelease>",
+                           lambda event: Ai_boot_BE.update_dropdown(event, entry, suggestion_listbox, employee_emails))
+                suggestion_listbox.bind("<ButtonRelease-1>",
+                                       lambda event: Ai_boot_BE.select_suggestion(event, entry, suggestion_listbox))
+                #print(suggestion_listbox.get())
+
+
+                return "Sucess"
+            else:
+                error_message(text)
+        case 2:
+            email = display  # Get the email from display
+            if checkevent(1):
+                if check_email_exists(email):
+                    chatlist.append(email)  # Append email to chatlist
+                    text = ["Enter Email Password"]
+                    excecuteCode(text)
+                    eventlist.append(2)
+                    entry.config(show="*")
+                    entry.unbind("<KeyRelease>")
+                    suggestion_listbox.unbind("<ButtonRelease-1>")
+                    return "Sucess"
+                else:
+                    messagebox.showerror("Error", "Employee email ID does not exist.")
+                    return switchImplementation(9, display)  # Go to case 9999
+            else:
+                error_message(text)
+
+        case 3:
+            def hash_password(password):
+                # Generate a salt (random bytes)
+                salt = bcrypt.gensalt()
+                # Hash the password with the salt
+                hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)  # Important: encode to utf-8
+                return hashed_password
+            print(checkevent(2))
+            if checkevent(2):
+                email = chatlist[0]  # Get the email from chatlist
+                max_attempts = 3
+                attempts = 0  # Initialize attempts to 1
+                password_checked = False  # Flag to track password verification
+        
+                def check_password(event=None):  # Add event parameter
+                    print("Inside check password")
+                    nonlocal attempts  # Allow modification of outer scope variable
+                    nonlocal display
+                    nonlocal password_checked  # Access the flag
+        
+                    #if password_checked:  # If password already checked, do nothing
+                        #return
+                    #password = display
+                    password = entry.get()  # Get the current password from the entry
+                    print(email,password)
+                    if verify_password(email, password):
+                        print("Password is correct!")
+                        sent_button=Button(text="SEND",command=lambda: send(entry.get()),bg="green", fg="black",width=70,height=0,font=("Calibri Bold", 25),padx=-20,image = photo,background="black")
+                        sent_button.place(x=1300,y=740)
+                        entry.bind("<Return>", send)
+
+                        # Password is correct, proceed
+                        messagebox.showinfo("Valid ID", "Valid ID")  # Show valid ID message
+                        entry.delete(0, END)  # Clear the entry field
+                        entry.config(show="")  # Hide password masking
+                        start.config(text=f"Your request id: {num}")
+                        text = [' 1.Search Employee ', ' 2.Generate Payroll ', ' 3.Update Employee ']
+                        text1 = ["Select option"]
+                        global start_timming
+                        now = datetime.datetime.now()
+                        start_timming = now.strftime("%Y-%m-%d %H:%M:%S")  # Common format
+                        start.config(text=f"Your request id: {num}")
+                        executeheading(text)
+                        excecuteCode(text1)
+                        eventlist.append(3)  # frame_heading(heading)
+                        hashed_password = hash_password(password)
+                        chatlist.append(hashed_password)
+                        print("Password_Ency", hashed_password)
+                        # ------------------------------------------------------------------------------------------------------
+                        data = pd.read_excel("DataBase/database.xlsx")
+        
+                        # Create user-request matrix
+                        user_request_matrix = pd.crosstab(data['EMAIL'], data['Request_Asked'])
+        
+                        # Matrix Factorization using Truncated SVD
+                        unique_requests = data['Request_Asked'].nunique()
+                        n_components = min(unique_requests, 2)  # adjust the number here.
+                        svd = TruncatedSVD(n_components=n_components)
+                        user_request_matrix_reduced = svd.fit_transform(user_request_matrix)
+        
+                        # Calculate cosine similarity on the reduced matrix
+                        user_similarity_reduced = cosine_similarity(user_request_matrix_reduced)
+                        user_similarity_reduced_df = pd.DataFrame(user_similarity_reduced,
+                                                                  index=user_request_matrix.index,
+                                                                  columns=user_request_matrix.index)
+        
+                        def display_default(event):
+                            if event.keysym == 'Right':
+                                entry.delete(0, tk.END)  # Clear existing content
+                                entry.insert(0, default_value)
+        
+                        def predict_requests_svd(gmail_id, user_request_matrix, user_similarity_df):
+                            if gmail_id not in user_request_matrix.index:
+                                print("New user, not enough data")
+        
+                            similar_users = user_similarity_reduced_df[gmail_id].sort_values(ascending=False).index[
+                                            1:6]
+                            similar_users_requests = user_request_matrix.loc[similar_users]
+                            user_requests = user_request_matrix.loc[gmail_id]
+                            recommendations = (similar_users_requests.sum() - user_requests).sort_values(ascending=False)
+                            print("Predceted request Asked:", recommendations[recommendations > 0].index.tolist())
+                            return recommendations[recommendations > 0].index.tolist()
+        
+                        # Example usage
+                        gmail = chatlist[0]
+                        predicted_requests_svd = predict_requests_svd(gmail, user_request_matrix,
+                                                                         user_similarity_reduced_df)
+                        print(f"Predicted requests (SVD) for {gmail}: {predicted_requests_svd}")
+                        entry.bind("<space>", predicted_requests_svd)
+                        default_value = round(predicted_requests_svd[0])
+                        entry.insert(0, default_value)
+                        entry.bind("<Key>", display_default)
+                        password_checked = True  # Set the flag to True after successful check
+                        return "Sucess"  # Exit the function
+                    else:
+                        print(password)
+                        print("not valid")
+                        print(password)
+                        # messagebox.showerror("Error", f"Invalid password. Attempt {attempts} of {max_attempts}")
+                        attempts += 1
+                        if attempts < max_attempts:
+                            messagebox.showerror("Error", f"Invalid password. Attempt {attempts} of {max_attempts}")
+                            #text = ["Enter Email Password"]
+                            #excecuteCode(text)
+                            entry.delete(0, END)  # Clear the entry field
+                            entry.insert(0, "")  # Clear the entry field
+                            entry.config(show="*")  # Show password masking
+                            entry.bind("<Return>", check_password)  # Rebind the event
+                            # The user will enter a new password and trigger check_password again
+                        else:
+                            messagebox.showerror("Error", "It is more than 3 attempts")
+                            return switchImplementation(9, display)  # Go to case 9999
+                
+                check_password()
+
+        case 4:
+            if checkevent(3):
+                chatlist.append(display)
+                heading = "Employee List"
+                frame_search(heading)
+            else:
+                error_message(text)
+        case 5:
+            if checkevent(3):
+                chatlist.append(display)
+                heading = "Generate Payrole"
+                frame_generate_payrole(heading)
+            else:
+                error_message(text)
+        case 6:
+            if checkevent(3):
+                chatlist.append(display)
+                heading = "update employee"
+                frame_update(heading)
+            else:
+                error_message(text)
+        case 7:
+            if checkevent(3):
+                chatlist.append(display)
+                heading = "perform measure"
+                frame_perfoem_measure(heading)
+            else:
+                error_message(text)
+        case 8:
+            now = datetime.datetime.now()
+            ending_timming = now.strftime("%Y-%m-%d %H:%M:%S")
+            insertdataindatabase()  #
+            print("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+            print(f"Start Time: {start_timming}, End Time: {ending_timming}")
+        case 9:
+            frist_page.destroy()
+        case 9999:
+            text = ["Invalid entry"]
+            error_message(text)
+           
+            
+
+def mapdata(display):
+    print(display)
+    try:
+            
+        if(display.lower())=='start':
+            return 1
+        elif(display.lower())=='end':
+            print("0 elif")
+            return 8
+        elif(checkforemail(display))==True:
+            return 2
+        elif(checkforpassword(display))==True:
+            print(display)
+            return 3
+            
+        elif int(display)==1:
+            return 4
+        elif int(display)==2:
+            return 5
+        elif int(display)==3:
+            return 6
+        elif int(display)==4:
+            return 7
+        
+        else:
+            print("hello")
+            return 9999
+    except:
+        print("hello")
+        return 9999
+        
+#send def
+def send(event):
+     print("Abcg")
+     print("INSIDE:",entry.get())
+     display=entry.get()
+     if len(chatlist)!=1:
+         entry.delete(0, 'end')
+     mapeddata=mapdata(display) 
+     arg=switchImplementation(mapeddata,display)
+     
+def excecuteCode(text):
+    global gloabl_label_entry
+    X=1000
+    Y=140
+    for i in text:
+        gloabl_label_entry=Label(frist_page,text=i,fg="black",padx=20, pady=10,bg="lightblue",font=("Arial Bold", 20))
+        gloabl_label_entry.place(x=X,y=Y)
+    
+class Marquee(Canvas):
+    def __init__(self, parent, text, **kwargs):
+        super().__init__(parent, **kwargs)
+        self.text = text
+        self.text_id = self.create_text(0, -2000, text=self.text, anchor="w", tags=("marquee",))  # Create the text item
+        self.x = 0
+        self.y = int(self['height']) // 2
+        self.bind("<Configure>", self.reset_position)
+        self.after(1000 // 60, self.tick)
+
+    def reset_position(self, event=None):
+        self.coords(self.text_id, self.x, self.y)
+        self.itemconfig(self.text_id, text=self.text) # Update the text
+        #self.itemconfig(self.text_id, font=marquee_font) # If you want to change the font dynamically
+
+    def tick(self):
+        self.move("marquee", -2, 0)
+        if self.bbox("marquee")[2] < 0:
+            self.coords("marquee", self.winfo_width(), self.y)
+        self.after(1000 // 60, self.tick)
+
+
+def executeheading(text):
+    try:
+        gloabl_label_entry.destroy() # Handle the case where the entry might not exist
+    except AttributeError:
+        pass # Do nothing if the entry is already destroyed or doesn't exist
+
+    X = 10
+    Y = 20
+    stored_text = ""
+
+    for i in text:
+        stored_text += i # More efficient way to build a string
+        print(stored_text)
+
+    marquee_font = ("Arial Bold", 25)
+    marquee = Marquee(frist_page, text=stored_text, width=1470, height=50, bg='#578FCA') # Canvas doesn't take font
+    marquee.place(x=10, y=500)
+
+    # Set the font of the TEXT ITEM *after* creating the Marquee:
+    marquee.itemconfig(marquee.text_id, font=marquee_font)  
+             
+class GifAnimator:
+    def __init__(self, master, file, blue_color=(), color_tolerance=5):
+        self.master = master
+        self.file = file
+        self.blue_color = blue_color
+        self.color_tolerance = color_tolerance
+        self.photoimage_objects = self.make_gif_transparent()
+        self.frames = len(self.photoimage_objects)
+        self.current_frame = 0
+        self.loop = None
+
+        self.gif_label = Label(self.master, image="")
+        self.gif_label.place(x=0, y=0)
+
+        self.animate()
+
+    def make_gif_transparent(self):
+        info = Image.open(self.file)
+        frames = info.n_frames
+        photoimage_objects = []
+
+        for i in range(frames):
+            info.seek(i)
+            frame = info.convert("RGBA")
+
+            pixels = frame.load()
+            width, height = frame.size
+
+            for x in range(width):
+                for y in range(height):
+                    r, g, b, a = pixels[x, y]
+                    #print(f"Pixel at ({x}, {y}): RGB=({r}, {g}, {b})") #Debug: Print pixel values
+                    if self.is_color_within_tolerance((r, g, b), self.blue_color, self.color_tolerance):
+                        pixels[x, y] = (r, g, b, 0)
+
+            photoimage = ImageTk.PhotoImage(frame)
+            photoimage_objects.append(photoimage)
+
+        return photoimage_objects
+
+    def is_color_within_tolerance(self, color1, color2, tolerance):
+        r1, g1, b1 = color1
+        r2, g2, b2 = color2
+        return (
+            abs(r1 - r2) <= tolerance and
+            abs(g1 - g2) <= tolerance and
+            abs(b1 - b2) <= tolerance
+        )
+
+    def animate(self):
+        image = self.photoimage_objects[self.current_frame]
+        self.gif_label.configure(image=image)
+        self.gif_label.image = image
+        self.current_frame = (self.current_frame + 1) % self.frames
+        self.loop = self.master.after(10, self.animate)
+
+    def stop_animation(self):
+        if self.loop:
+            self.master.after_cancel(self.loop)
+            self.loop = None
+
+# Example usage:
+file = "D:/Full Stack Development/Final Project/FrontEnd/boot1m3.gif"  # Replace with your GIF path
+
+# Adjust blue_color and color_tolerance as needed:
+# 1. Use an image editor to find the exact RGB of the background.
+# 2. Increase color_tolerance if needed.
+gif_animator = GifAnimator(frist_page, file, blue_color=(0,0,255), color_tolerance=5)
+
+
+
+#start the chat
+start=Label(frist_page, text="Type Start to chat with us.", font=("Arial Bold", 25),bg="#7E99A3",fg="black",padx=20, pady=10)
+start.place(x=1000,y=20) #1000
+
+#timming=Label(frist_page, text="", font=("Arial Bold", 25),bg="#7E99A3",fg="black",padx=20, pady=10)
+#timming.place(x=1000,y=40)
+
+entry = Entry(width=30, font=("Calibri Bold", 19), bg="#7E99A3")  
+entry.place(x=900, y=750, width=350, height=50)
+bold_font = ("Arial", 16, "bold")
+global eventlist
+eventlist = []
+    
+
+
+#send button
+size = 128, 70
+image=Image.open('D:/Full Stack Development/Final Project/FrontEnd/send2m.png')
+image.thumbnail(size)
+image.save(file + ".thumbnail", "PNG")
+photo=ImageTk.PhotoImage(image)
+sent_button=Button(text="SEND",command=lambda: send(entry.get()),bg="green", fg="black",width=70,height=0,font=("Calibri Bold", 25),padx=-20,image = photo,background="black")
+sent_button.place(x=1300,y=740)
+entry.bind("<Return>", send)
+
+def create_gender_pie_chart(employee_data, canvas_frame):
+    if 'Gender' not in employee_data.columns:
+        print("Error: 'Gender' column not found in the DataFrame.")
+        return
+
+    gender_counts = employee_data['Gender'].value_counts()
+
+    if gender_counts.empty:
+        print("Error: No gender data found in the DataFrame.")
+        return
+
+    labels = gender_counts.index
+    sizes = gender_counts.values
+
+    fig = plt.figure(figsize=(1,1))  # Adjust figure size as needed
+    plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=150,radius=.2)
+    plt.title('Employee Gender Distribution')
+    plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+    canvas = FigureCanvasTkAgg(fig, master=canvas_frame)
+    canvas.draw()
+    canvas.get_tk_widget().place(x=0, y=0,height=400,width=400)
+    
+def create_request_bar_chart(employee_data, canvas_frame): 
+    if 'StartingTimming' not in employee_data.columns or 'Request_Asked' not in employee_data.columns: 
+        print("Error: DataFrame must contain 'StartingTimming' and 'Request_Asked' columns.") 
+        return 
+
+    try: 
+        # Convert 'StartingTimming' to datetime objects, handle errors 
+        employee_data['StartingTimming'] = pd.to_datetime(employee_data['StartingTimming'], errors='coerce') 
+        employee_data = employee_data.dropna(subset=['StartingTimming']) 
+
+        # Split comma-separated requests and count individual requests 
+        employee_data['request_count'] = employee_data['Request_Asked'].apply(lambda x: len(str(x).split(','))) 
+
+        # Group by date and sum the request counts 
+        date_counts = employee_data.groupby(employee_data['StartingTimming'].dt.date)['request_count'].sum() 
+
+        if date_counts.empty: 
+            print("Error: No request data found in the DataFrame.") 
+            return 
+
+        # Create the Matplotlib figure and axes 
+        fig, ax = plt.subplots(figsize=(1,1)) #10,6 
+
+        # Format date as 'm/d'
+        formatted_dates = [date.strftime('%m/%d') for date in date_counts.index]
+
+        # Create the bar chart 
+        ax.bar(formatted_dates, date_counts.values) 
+
+        # Customize the chart 
+        ax.set_xlabel("Date") 
+        ax.set_ylabel("Number of Requests") 
+        ax.set_title("Request Frequency by Date") 
+        ax.tick_params(axis='x', rotation=0) # Keep the rotation 
+
+        # Set the horizontal alignment of the tick labels. 
+        for tick in ax.get_xticklabels(): 
+            tick.set_horizontalalignment('right') 
+
+        # Embed the chart in the Tkinter canvas 
+        canvas = FigureCanvasTkAgg(fig, master=canvas_frame) 
+        canvas.draw() 
+        canvas.get_tk_widget().place(x=360, y=0,height=380,width=800) #300,300 
+
+        # Clean up the Matplotlib figure 
+        plt.close(fig) 
+
+    except Exception as e: 
+        print(f"An unexpected error occurred: {e}") 
+
+def salary_frame():
+    salary_frame = Frame(frist_page, bg='#6666FF', bd=5)
+    salary_frame.place(x=100, y=80, height=680, width=1300)
+    Button(salary_frame,text="\u00D7",command=lambda: close_frame(salary_frame),bg="red", fg="black",width=2,pady=-10,font=("Calibri Bold", 15),padx=-20).place(x=1260,y=9)
+    predict_label=Label(salary_frame,text="Salary Prediction",font=("Arial Bold",25),fg="blue")
+    predict_label.place(x=400,y=5)
+    
+    job_title_label = Label(salary_frame, text="Job Title:",font=("Calibri",17)) 
+    job_title_label.place(x=150,y=150)
+    job_title_options = ["Controls Engineer", "Analyst", "Network Administrator", "IT Systems Architect", "Director",
+                         "Sr. Analyst", "System Administrator", "Manager", "Technical Architect", "Account Representative",
+                         "Vice President", "Director", "Vice President", "Service Desk Analyst", "Test Engineer",
+                         "Cloud Infrastructure Architect"]
+
+    selected_job_title = StringVar()
+    job_title_combobox = ttk.Combobox(salary_frame, textvariable=selected_job_title, values=job_title_options, font=("TkDefaultFont", 15),width=20,height=5,state="readonly")
+    job_title_combobox.place(x=400, y=150)
+
+
+
+    department_label = Label(salary_frame, text="Depertment:",font=("Calibri",17))
+    department_label.place(x=150,y=200)
+    department_options = ["Sales", "IT", "Engineering", "Accounting", "Finance","Marketing","Human Resources"]  # Example options
+    selected_department = StringVar()
+    department_combobox = ttk.Combobox(salary_frame, textvariable=selected_department, values=department_options, font=("TkDefaultFont", 15), width=20,height=5,state="readonly")
+    department_combobox.place(x=400, y=200)
+
+    
+    gender_label = Label(salary_frame, text="Gender:",font=("Calibri",17))
+    gender_label.place(x=150,y=250)
+    
+    gender_options = ["Male", "Female","Prefer not to say"]
+    gender_var = StringVar()
+    x,y=400,250
+    for i, option in enumerate(gender_options):
+        radio_button = Radiobutton(
+            salary_frame,
+            text=option,
+            variable=gender_var,
+            value=option,
+            font=("Calibri", 17),
+        )
+        radio_button.place(x=x + (i * 120), y=y)
+    
+    age_label = Label(salary_frame, text="Age:",font=("Calibri",17))
+    age_label.place(x=150,y=300)
+    age_entry =Entry(salary_frame,font=("TkDefaultFont", 17))
+    age_entry.place(x=400,y=300)
+    
+    
+    exp_yer_label = Label(salary_frame, text="Experiance Year:",font=("Calibri",17))
+    exp_yer_label.place(x=150,y=350)
+    exp_yer_entry =Entry(salary_frame,font=("TkDefaultFont", 17))
+    exp_yer_entry.place(x=400,y=350)
+    def execute():
+        job_title = selected_job_title.get()
+        department = selected_department.get()
+        gender = gender_var.get()
+        age = age_entry.get()
+        experience = exp_yer_entry.get()
+        
+        global predict_salary_entry,predict_inword_entry,predict_salary_label,predict_inword_label
+        predict_salary,priction_inword=Ai_boot_BE.salary_prediction(job_title,department,gender,age,experience)
+
+        predict_salary_label = Label(salary_frame, text="Salary",font=("Calibri",17))
+        predict_salary_label.place(x=150,y=400)
+        predict_salary_entry =Entry(salary_frame, font=("TkDefaultFont", 15)) #state=DISABLED,
+        predict_salary_entry.place(x=400,y=400)
+        predict_salary_entry.insert(0,(predict_salary))
+        predict_salary_entry.config(state=DISABLED)
+        
+        predict_inword_label = Label(salary_frame, text="Salary",font=("Calibri",17))
+        predict_inword_label.place(x=150,y=450)
+        predict_inword_entry =Entry(salary_frame, font=("TkDefaultFont", 15),width=60) #state=DISABLED,
+        predict_inword_entry.place(x=400,y=450)
+        predict_inword_entry.insert(0,(priction_inword))
+        predict_inword_entry.config(state=DISABLED)
+        
+    def reset_entries():
+        selected_job_title.set("")
+        selected_department.set("")
+        gender_var.set("")
+        age_entry.delete(0, tk.END)
+        exp_yer_entry.delete(0, tk.END)
+        predict_salary_entry.place_forget()
+        predict_inword_entry.place_forget()
+        predict_salary_label.place_forget()
+        predict_inword_label.place_forget()
+
+    Button(salary_frame, text="\u27F3 Reset", command=reset_entries, bg="skyblue", height=2).place(x=1050, y=9)
+        
+    generate_button =Button(salary_frame, text="Predict", command=execute,width=10,height=0,font=("Calibri Bold", 20)) # Start disabled
+    generate_button.place(x=1000,y=500)
+    
+    def check_entries(*args):
+        """Checks if all entries have values and enables/disables the button."""
+        if (selected_job_title.get() and
+            selected_department.get() and
+            gender_var.get() and
+            age_entry.get() and
+            exp_yer_entry.get()):
+            generate_button.config(state="normal")  # Enable button
+        else:
+            generate_button.config(state="disabled") # Disable button
+
+    # Bind the check_entries function to changes in the StringVar variables and entries
+    selected_job_title.trace_add("write", check_entries)
+    selected_department.trace_add("write", check_entries)
+    gender_var.trace_add("write", check_entries)
+    age_entry.bind("<KeyRelease>", check_entries)
+    exp_yer_entry.bind("<KeyRelease>", check_entries)
+    # Initially disable the button
+    generate_button.config(state="disabled")
+    
+def skill_gap_prediction():
+    skill_frame = Frame(frist_page, bg='#6666FF', bd=5)
+    skill_frame.place(x=100, y=80, height=680, width=1300)
+    Button(skill_frame,text="\u00D7",command=lambda: close_frame(skill_frame),bg="red", fg="black",width=2,pady=-10,font=("Calibri Bold", 15),padx=-20).place(x=1260,y=9)
+    predict_label=Label(skill_frame,text="Employee Turnover Prediction",font=("Arial Bold",25),fg="blue")
+    predict_label.place(x=400,y=5)
+    
+    job_title_label = Label(skill_frame, text="Job Title:",font=("Calibri",17)) 
+    job_title_label.place(x=150,y=100)
+    job_title_options = ["Controls Engineer", "Analyst", "Network Administrator", "IT Systems Architect", "Director",
+                         "Sr. Analyst", "System Administrator", "Manager", "Technical Architect", "Account Representative",
+                         "Vice President", "Director", "Vice President", "Service Desk Analyst", "Test Engineer",
+                         "Cloud Infrastructure Architect"]
+
+    selected_job_title = StringVar()
+    job_title_combobox = ttk.Combobox(skill_frame, textvariable=selected_job_title, values=job_title_options, font=("TkDefaultFont", 15),width=20,height=5,state="readonly")
+    job_title_combobox.place(x=400, y=100)
+
+
+
+    department_label = Label(skill_frame, text="Depertment:",font=("Calibri",17))
+    department_label.place(x=150,y=150)
+    department_options = ["Sales", "IT", "Engineering", "Accounting", "Finance","Marketing","Human Resources"]  # Example options
+    selected_department = StringVar()
+    department_combobox = ttk.Combobox(skill_frame, textvariable=selected_department, values=department_options, font=("TkDefaultFont", 15), width=20,height=5,state="readonly")
+    department_combobox.place(x=400, y=150)
+
+    
+    gender_label = Label(skill_frame, text="Gender:",font=("Calibri",17))
+    gender_label.place(x=150,y=200)
+    
+    gender_options = ["Male", "Female","Prefer not to say"]
+    gender_var = StringVar()
+    x,y=400,200
+    for i, option in enumerate(gender_options):
+        radio_button = Radiobutton(
+            skill_frame,
+            text=option,
+            variable=gender_var,
+            value=option,
+            font=("Calibri", 17),
+        )
+        radio_button.place(x=x + (i * 120), y=y)
+    
+    age_label = Label(skill_frame, text="Age:",font=("Calibri",17))
+    age_label.place(x=150,y=250)
+    age_entry =Entry(skill_frame,font=("TkDefaultFont", 17))
+    age_entry.place(x=400,y=250)
+    
+    
+    exp_yer_label = Label(skill_frame, text="Experiance Year:",font=("Calibri",17))
+    exp_yer_label.place(x=150,y=300)
+    exp_yer_entry =Entry(skill_frame,font=("TkDefaultFont", 17))
+    exp_yer_entry.place(x=400,y=300)
+    
+    salary_label = Label(skill_frame, text="Salary:",font=("Calibri",17))
+    salary_label.place(x=150,y=350)
+    salary_entry =Entry(skill_frame,font=("TkDefaultFont", 17))
+    salary_entry.place(x=400,y=350)
+    
+    Bonus_label = Label(skill_frame, text="Bonus: ",font=("Calibri",17))
+    Bonus_label.place(x=150,y=400)
+    Bonus_entry =Entry(skill_frame,font=("TkDefaultFont", 17))
+    Bonus_entry.place(x=400,y=400)
+    
+    def execute():
+        job_title = selected_job_title.get()
+        department = selected_department.get()
+        gender = gender_var.get()
+        age = age_entry.get()
+        experience = exp_yer_entry.get()
+        salary=salary_entry.get()
+        bonus=Bonus_entry.get()
+    
+        predict_organization_exit=Ai_boot_BE.exit_organization_prediction(job_title,department,gender,int(age),int(experience),int(salary),int(bonus))
+
+        global predict_salary_entry,predict_salary_label
+        predict_salary_label = Label(skill_frame, text="Exit",font=("Calibri",17))
+        predict_salary_label.place(x=150,y=450)
+        predict_salary_entry =Entry(skill_frame, font=("TkDefaultFont", 15)) #state=DISABLED,
+        predict_salary_entry.place(x=400,y=450)
+        predict_salary_entry.insert(0,(predict_organization_exit))
+        predict_salary_entry.config(state=DISABLED)
+        
+    def reset_entries():
+        selected_job_title.set("")
+        selected_department.set("")
+        gender_var.set("")
+        age_entry.delete(0, tk.END)
+        exp_yer_entry.delete(0, tk.END)
+        salary=salary_entry.delete(0, tk.END)
+        bonus=Bonus_entry.delete(0, tk.END)
+        predict_salary_entry.place_forget()
+        predict_salary_label.place_forget()
+
+    Button(skill_frame, text="\u27F3 Reset", command=reset_entries, bg="skyblue", height=2).place(x=1050, y=9)
+        
+    generate_button =Button(skill_frame, text="Predict", command=execute,width=10,height=0,font=("Calibri Bold", 20)) # Start disabled
+    generate_button.place(x=900,y=500)
+    
+    def check_entries(*args):
+        """Checks if all entries have values and enables/disables the button."""
+        if (selected_job_title.get() and
+            selected_department.get() and
+            gender_var.get() and
+            age_entry.get() and
+            exp_yer_entry.get() and salary_entry.get() and Bonus_entry.get()):
+            generate_button.config(state="normal")  # Enable button
+        else:
+            generate_button.config(state="disabled") # Disable button
+
+    # Bind the check_entries function to changes in the StringVar variables and entries
+    selected_job_title.trace_add("write", check_entries)
+    selected_department.trace_add("write", check_entries)
+    gender_var.trace_add("write", check_entries)
+    age_entry.bind("<KeyRelease>", check_entries)
+    exp_yer_entry.bind("<KeyRelease>", check_entries)
+    salary_entry.bind("<KeyRelease>", check_entries)
+    Bonus_entry.bind("<KeyRelease>", check_entries)
+    # Initially disable the button
+    generate_button.config(state="disabled")
+    
+
+def predict_next_months_average(excel_file_path,canvas_frame,num_months=3):
+    print("kjhbfjhgfuh*****************************")
+    """
+    Predicts the averages for specific months in a target year using a Random Forest Regressor and plots a line graph.
+    """
+    month_year_averages = Ai_boot_BE.calculate_average_by_month_year(excel_file_path)
+    print(month_year_averages)
+
+    if "error" in month_year_averages:
+        return month_year_averages["error"]
+
+    data_2023 = {}
+    data_2024 = {}
+    data_2025 = {}
+
+    for year, month_data in month_year_averages.items():
+        if year == '2023':
+            data_2023.update(month_data)
+        elif year == '2024':
+            data_2024.update(month_data)
+        elif year == '2025':
+            data_2025.update(month_data)
+
+    months_2023 = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
+    percentages_2023 = [data_2023.get(month, 0) for month in months_2023]
+
+    months_2024 = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
+    percentages_2024 = [data_2024.get(month, 0) for month in months_2024]
+
+    months_2025 = ["january", "february", "march"]
+    percentages_2025 = [data_2025.get(month, 0) for month in months_2025]
+
+    X_2023 = np.array(range(1, 13)).reshape(-1, 1)
+    y_2023 = np.array(percentages_2023)
+
+    X_2024 = np.array(range(1, 13)).reshape(-1, 1)
+    y_2024 = np.array(percentages_2024)
+
+    X_2025 = np.array(range(1, len(percentages_2025) + 1)).reshape(-1, 1)
+    y_2025 = np.array(percentages_2025)
+
+    model = RandomForestRegressor(n_estimators=100, random_state=12)
+    model.fit(X_2023, y_2023)
+
+    model2 = RandomForestRegressor(n_estimators=100, random_state=12)
+    model2.fit(X_2024, y_2024)
+
+    model3 = RandomForestRegressor(n_estimators=100, random_state=12)
+    model3.fit(X_2025, y_2025)
+
+    predictions = []
+    month_numbers = []
+    months_to_predict=["april", "june", "july"]
+    for month in months_to_predict:
+        month_number = months_2024.index(month) + 1
+        month_numbers.append(month_number)
+        base_2023_predict = model.predict(np.array([[month_number]]))[0]
+        trend_2024 = model2.predict(np.array([[month_number]]))[0]
+        trend_2025 = model3.predict(np.array([[month_number]]))[0]
+        base_2023_predict=(str(base_2023_predict))
+        trend_2024= str(trend_2024)
+        trend_2025=str(trend_2025)
+       
+        predictions.append(base_2023_predict[0:8])
+        predictions.append(trend_2024[0:8])
+        predictions.append(trend_2025[0:8])
+        
+        try:
+            stockListExp = months_to_predict
+            stockSplitExp = predictions
+            
+            print(stockListExp, stockSplitExp)
+            fig, ax = plt.subplots(figsize=(8, 3))  # Use 8, 3 to match the 800x300 frame
+            ax.pie(stockSplitExp,
+                   radius=1,
+                   labels=stockListExp,
+                   autopct='%0.2f%%',
+                   shadow=True,
+                   startangle=150)
+
+            # Customize the chart
+            ax.set_title("Payroll Prediction")  # Set the title
+            fig.subplots_adjust(left=0, right=1, bottom=0, top=0.9)  # Adjust top to make space.
+
+            # Embed the chart in the Tkinter canvas
+            chart1 = FigureCanvasTkAgg(fig, master=dashboard_frame)  # Use master=
+            chart1.draw()
+            chart1.get_tk_widget().place(x=740, y=380, height=320, width=800)
+
+            plt.close(fig)  # Clean up
+
+
+        except:
+            pass
+
+
+    return predictions
+
+    
+def Dashboard():
+    global dashboard_frame
+    dashboard_frame = Frame(frist_page, bg='white', bd=5)
+    dashboard_frame.place(x=100, y=80, height=680, width=1300)
+    Button(dashboard_frame,text="\u00D7",command=lambda: close_frame(dashboard_frame),bg="red", fg="black",width=2,pady=-10,font=("Calibri Bold", 15),padx=-20).place(x=1260,y=9)
+    entry.config(state=DISABLED)
+    sent_button.config(state=DISABLED)
+    Dashboard_button.config(state=DISABLED)
+    predict_salary=Button(dashboard_frame,text="Salary Predict",command=lambda: salary_frame(),bg="green", fg="black",width=12,height=0,font=("Calibri Bold", 25)).place(x=20,y=600)
+    prediction_skill_gap=Button(dashboard_frame,text="Turnover Prediction",command=lambda: skill_gap_prediction(),bg="green", fg="black",width=17,height=0,font=("Calibri Bold", 25)).place(x=350,y=600)
+    try:
+        employee_details = pd.read_csv('D:/Full Stack Development/Final Project/FrontEnd/DataBase/Employee_Search.csv', encoding='latin1')  # or encoding='cp1252'
+        request_data = pd.read_excel('D:/Full Stack Development/Final Project/FrontEnd/DataBase/database.xlsx')
+    except UnicodeDecodeError:
+        print("UnicodeDecodeError: Try a different encoding such as cp1252")
+        return
+    except FileNotFoundError:
+        print(f"Error: File not found at D:/Full Stack Development/Final Project/FrontEnd/DataBase/Employee_Search.csv")
+        return
+    except pd.errors.ParserError:
+        print(f"Error: Could not parse CSV file at D:/Full Stack Development/Final Project/FrontEnd/DataBase/Employee_Search.csv")
+        return
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return
+
+    create_gender_pie_chart(employee_details, dashboard_frame) 
+    create_request_bar_chart(request_data, dashboard_frame)
+    excel_file_path = "D:/Full Stack Development/Final Project/FrontEnd/DataBase/generate_payrole_randome.csv"
+    predict_next_months_average(excel_file_path, dashboard_frame) #predicted_averages = 
+
+
+Dashboard_button = Button(frist_page, text="Dashboard", width=10, height=0, font=("Calibri Bold", 20), command=Dashboard)
+Dashboard_button.place(x=100, y=750)
+
+#gloabl_label=Label(frist_page,text="",fg="black",padx=20, pady=10,bg="lightblue",font=("Arial Bold", 20))
+num = random.randint(1000,9999)
+
+frist_page.mainloop()
