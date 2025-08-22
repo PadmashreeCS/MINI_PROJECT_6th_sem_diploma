@@ -1,0 +1,797 @@
+import os
+from tkinter import ttk, messagebox
+import pandas as pd
+import tkinter as tk
+import openpyxl
+import datetime
+from tkinter import filedialog
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas #?
+import mysql.connector
+from openpyxl import load_workbook
+from fuzzywuzzy import fuzz
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+import pickle
+from keras.layers import Input
+from sklearn.feature_extraction import DictVectorizer
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import accuracy_score
+import num2words
+
+def login_details_indatabase(num,chatlist,frist_page,start_timming,ending_timming): #begnning and end timming
+    #global chatlist
+    print(chatlist)
+    #check wether the user name is existing or not
+    import openpyxl # which is used to read and write the excel file 
+    #step 1 import the package
+    #step2 open the xl file
+    wb=openpyxl.load_workbook("DataBase/database.xlsx")
+    #step3 activation theexcel file
+    sheet=wb.active
+    #insert the column name
+    sheet.cell(row=1 ,column=1).value="StartingTimming" 
+    sheet.cell(row=1 ,column=2).value="RequestID" 
+    sheet.cell(row=1 ,column=3).value="EMAIL"
+    sheet.cell(row=1 ,column=4).value="PASSWORD"
+    sheet.cell(row=1 ,column=5).value="Request_Asked"
+    sheet.cell(row=1 ,column=6).value="EndingTimming" 
+    
+    totalrow=sheet.max_row
+    string=len(chatlist)
+    request=""
+    for i in range(2,string):
+        request=request+chatlist[i]
+        
+    #step4 insert the data in the sheet
+    sheet.cell(row=totalrow+1 ,column=1).value=start_timming 
+    sheet.cell(row=totalrow+1 ,column=2).value=num 
+    sheet.cell(row=totalrow+1 ,column=3).value=chatlist[0]
+    sheet.cell(row=totalrow+1 ,column=4).value=chatlist[1]
+    sheet.cell(row=totalrow+1 ,column=5).value=request
+    sheet.cell(row=totalrow+1 ,column=6).value=ending_timming 
+    wb.save("DataBase/database.xlsx")
+    frist_page.destroy() 
+    
+
+           
+def login_details_mysql(chatlist, db_config,num):
+    string=len(chatlist)
+    request=""
+    for i in range(2,string):
+        request=request+chatlist[i]
+    try:
+        # Connect to the MySQL database
+        conn = mysql.connector.connect(**db_config) # RequestID INT AUTO_INCREMENT PRIMARY KEY,
+        cursor = conn.cursor()
+
+        # Create the table if it doesn't exist
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_requests (
+                StartingTimming DATETIME,
+                RequestID INT AUTO_INCREMENT PRIMARY KEY,
+                EMAIL VARCHAR(255),
+                PASSWORD VARCHAR(255),
+                Request_Asked TEXT,
+                EndingTimming DATETIME
+            )
+        """)
+
+        # Extract data from chatlist
+        email = chatlist[0]
+        password = chatlist[1]
+        #request = num#"".join(chatlist[2:])  # Join the rest of the list into the request string
+
+        # Generate timestamps
+        start_timming = datetime.datetime.now()
+        ending_timming = start_timming + datetime.timedelta(minutes=30) #example add 30 minutes.
+
+        # Insert the data into the table, RequestID auto increments
+        cursor.execute("""
+            INSERT INTO user_requests (StartingTimming,EMAIL, PASSWORD, Request_Asked, EndingTimming)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (start_timming,email,password, request, ending_timming))
+
+        # Commit the changes and close the connection
+        conn.commit()
+        conn.close()
+
+        print("Data inserted successfully into the MySQL database.")
+
+    except mysql.connector.Error as e:
+        print(f"An error occurred: {e}")
+    except IndexError:
+        print("Error: chatlist does not contain enough elements.")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        
+
+def print_all_mysql_data(db_config):
+    try:
+        conn = mysql.connector.connect(**db_config)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT * FROM user_requests")
+        rows = cursor.fetchall()
+
+        if rows:
+            for row in rows:
+                print("********************************************************")
+                print(row)
+        else:
+            print("No data found in the user_requests table.")
+
+        conn.close()
+
+    except mysql.connector.Error as e:
+        print(f"An error occurred while retrieving data: {e}")
+
+
+#chatlist = ["test@example.com", "password123", "request part 1", "request part 2"]
+
+    
+    
+def frame_search_excel(frame, filepath):
+    encodings_to_try = ['utf-8', 'latin-1', 'ISO-8859-1', 'windows-1252']
+
+    for encoding in encodings_to_try:
+        try:
+            df = pd.read_csv(filepath, encoding=encoding)
+            break
+        except UnicodeDecodeError:
+            print(f"Decoding with {encoding} failed. Trying next encoding.")
+            continue
+
+    else:
+        messagebox.showerror("Error", f"Could not decode CSV file. Tried encodings: {encodings_to_try}")
+        return  # Exit the function if no encoding worked
+
+    try:  # Put the rest of the code in a try block to catch other exceptions
+        global tree
+        tree = ttk.Treeview(frame, columns=list(df.columns), show="headings",padding=5)
+        tree.pack(fill=tk.BOTH, expand=True)
+
+        for col in df.columns:
+            tree.heading(col, text=col)
+
+        for _, row in df.iterrows():
+            tree.insert("", tk.END, values=list(row))
+
+        vsb = ttk.Scrollbar(frame, orient="vertical", command=tree.yview)
+        vsb.pack(side='right', fill='y')
+        tree.configure(yscrollcommand=vsb.set)
+
+        hsb = ttk.Scrollbar(frame, orient="horizontal", command=tree.xview)
+        hsb.pack(side='bottom', fill='x')
+        tree.configure(xscrollcommand=hsb.set)
+
+    except Exception as e: # Handle exceptions during Treeview creation
+        messagebox.showerror("Error", f"An error occurred: {e}")
+
+
+def load_csv_from_path(frame, filepath):
+    if filepath and os.path.exists(filepath):
+        frame_search_excel(frame, filepath)
+    else:
+        messagebox.showerror("Error", f"File not found at: {filepath}")
+        
+
+def search_employee(entry):
+    entry = entry.get()
+    selections = []
+    tree.selection_set(selections)
+
+    for child in tree.get_children():
+        if entry in tree.item(child)['values']:   # compare strings in  lower cases.
+            print(tree.item(child)['values'])
+            selections.append(child)
+            tree.selection_set(selections)
+            return 1
+    print('search completed')
+    return -1
+
+
+
+def clear_entries(name_entry,dept_entry,update_button,jobtitle_entry,business_entry,annual_entry,bonus_entry,search_entry):
+    name_entry.delete(0, tk.END)
+    dept_entry.delete(0, tk.END)
+    jobtitle_entry.delete(0, tk.END)
+    business_entry.delete(0, tk.END)
+    annual_entry.delete(0, tk.END)
+    bonus_entry.delete(0, tk.END)
+    search_entry.delete(0, tk.END)
+    # Clear other entry fields
+
+    name_entry.config(state=tk.DISABLED)  # Disable entries after clearing
+    dept_entry.config(state=tk.DISABLED)
+    jobtitle_entry.config(state=tk.DISABLED)
+    business_entry.config(state=tk.DISABLED)
+    annual_entry.config(state=tk.DISABLED)
+    bonus_entry.config(state=tk.DISABLED)
+    # Disable other entries
+
+    update_button.config(state=tk.DISABLED)
+
+def search_employee_update(search_entry,name_entry,dept_entry,update_button,jobtitle_entry,business_entry,annual_entry,bonus_entry):
+    employee_id = search_entry.get()
+    try:
+        # Assuming your Excel file is named 'employee_data.xlsx'
+        df = pd.read_excel('D:/Full Stack Development/Final Project/FrontEnd/DataBase/Employee_Search_xlrd.xlsx')  # Replace with your file name
+
+        # Find the employee data
+        employee_data = df[df['Employee ID'] == employee_id] # Assuming Employee ID is an integer
+
+        if not employee_data.empty:
+            # Display data in labels
+            #name_label.config(text=employee_data['Full Name']) #.values[0]
+            #department_label.config(text=employee_data['Department'])
+            # ... display other data similarly
+
+            # Enable edit mode (make entries editable)
+            name_entry.config(state=tk.NORMAL)
+            name_entry.delete(0, tk.END)  # Clear current text
+            name_entry.insert(0, employee_data['FullName'].values[0])
+            
+
+            dept_entry.config(state=tk.NORMAL)
+            dept_entry.delete(0, tk.END)
+            dept_entry.insert(0, employee_data['Department'].values[0])
+            
+            jobtitle_entry.config(state=tk.NORMAL)
+            jobtitle_entry.delete(0, tk.END)
+            jobtitle_entry.insert(0, employee_data['Job Title'].values[0])
+            
+            business_entry.config(state=tk.NORMAL)
+            business_entry.delete(0, tk.END)
+            business_entry.insert(0, employee_data['Business Unit'].values[0])
+            
+            annual_entry.config(state=tk.NORMAL)
+            annual_entry.delete(0, tk.END)
+            annual_entry.insert(0, employee_data['Annual Salary'].values[0])
+        
+            bonus_entry.config(state=tk.NORMAL)
+            bonus_entry.delete(0, tk.END)
+            bonus_entry.insert(0, employee_data['Bonus %'].values[0])            
+            
+            
+
+            # ... enable edit for other fields
+
+            update_button.config(state=tk.NORMAL)  # Enable the update button
+        else:
+            messagebox.showinfo("Not Found", "Employee ID not found.")
+            clear_entries(name_entry,dept_entry,update_button,jobtitle_entry,business_entry,annual_entry,bonus_entry,search_entry) # Clear entry fields if not found
+
+    except FileNotFoundError:
+        messagebox.showerror("Error", "Excel file not found.")
+    except ValueError: #For non-integer employee IDs
+        messagebox.showerror("Error", "Invalid Employee ID. Please enter a number.")
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred: {e}")
+        
+def update_employee(search_entry,name_entry,dept_entry,update_button,jobtitle_entry,business_entry,annual_entry,bonus_entry):
+    print(name_entry.get())
+    employee_id = search_entry.get()
+    try:
+        df = pd.read_excel('D:/Full Stack Development/Final Project/FrontEnd/DataBase/Employee_Search_xlrd.xlsx')
+        employee_index = df[df['Employee ID'] == (employee_id)].index[0]
+        print(employee_index)
+        # Update data in DataFrame
+        df.loc[employee_index, 'FullName'] = name_entry.get()
+        df.loc[employee_index, 'Job Title'] = jobtitle_entry.get()
+        df.loc[employee_index, 'Department'] = dept_entry.get()
+        df.loc[employee_index, 'Business Unit'] = business_entry.get()
+        df.loc[employee_index, 'Annual Salary'] = annual_entry.get()
+        df.loc[employee_index, 'Bonus %'] = bonus_entry.get()
+        
+        # ... update other fields similarly
+        
+        df.to_excel('D:/Full Stack Development/Final Project/FrontEnd/DataBase/Employee_Search_xlrd.xlsx', index=False)  # Save changes
+        messagebox.showinfo("Success", "Employee data updated successfully.")
+        search_employee_update(search_entry,name_entry,dept_entry,update_button,jobtitle_entry,business_entry,annual_entry,bonus_entry) #Refresh the displayed data after update
+        clear_entries(name_entry,dept_entry,update_button,jobtitle_entry,business_entry,annual_entry,bonus_entry,search_entry)
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred during update: {e}")
+    
+        
+def convert_usd_to_inr(amount_usd, exchange_rate):
+    amount_usd = float(amount_usd.replace(",", ""))
+    amount_inr = amount_usd * exchange_rate
+    amount_inr_rounded = round(amount_inr)
+    return amount_inr_rounded
+        
+    
+def pay_search(search_entry_generate,amount_entry,reduce_entry,netpay_entry,generate_button,textvariable_entry):#text_reducsion
+    global inr_amount, payrole_month, netamount_10
+    employee_id = search_entry_generate.get()
+    
+    def text_reduction(df,inr_amount):
+        print("inside text_variable")
+        print(inr_amount)
+        # Ensure CTC columns are numeric
+        print(df.columns)
+        retax=-1
+        mini_ctc=list(df['Mini_CTC'])
+        max_ctc= list(df['Max_CTC'])
+        tax= list(df['TX'])
+        counter=-1
+        for i in mini_ctc:
+            counter=counter+1
+            if int(i) <= int(inr_amount) and int(max_ctc[counter]) >= int(inr_amount):
+                print("inside condision")
+                retax=tax[counter]
+                print(retax)
+                
+        if(retax!=-1):
+            reduced_salary = inr_amount * (1 - (retax / 100))
+            return reduced_salary
+            
+    
+    try:
+        # Assuming your Excel file is named 'employee_data.xlsx'
+        df = pd.read_excel('D:/Full Stack Development/Final Project/FrontEnd/DataBase/Employee_Search_xlrd.xlsx')  # Replace with your file name
+
+        # Find the employee data
+        employee_data = df[df['Employee ID'] == employee_id] # Assuming Employee ID is an integer
+
+        if not employee_data.empty:
+            print("Inside")
+            
+            #annual_salary
+            original_state = amount_entry.cget("state")
+            annual_salary_usd=employee_data['Annual Salary'].values[0]
+            cleaned_amount_str = annual_salary_usd.replace('$', '')
+            exchange_rate = 87.01  # For example, 1 USD = 87.01 INR (as of feb 2025)
+            inr_amount = convert_usd_to_inr(cleaned_amount_str, exchange_rate)
+            print(inr_amount)
+            amount_entry.config(state=tk.NORMAL)
+            #pay role
+            payrole_month=inr_amount/12
+            payrole_month = round(payrole_month) 
+            amount_entry.delete(0, tk.END)
+            amount_entry.insert(0,"₹" + str(payrole_month))
+            amount_entry.config(state=original_state)
+            
+
+            #reduce
+            reduce_entry.config(state=tk.NORMAL)
+            reduce_entry.delete(0, tk.END)
+            reduce_entry.insert(0,"10%")
+            reduce_entry.config(state=original_state)
+            
+            #netamount
+            netamount=payrole_month * 0.10
+            netamount_10=payrole_month-netamount
+            netamount_10 = round(netamount_10) 
+            netpay_entry.config(state=tk.NORMAL)
+            netpay_entry.delete(0, tk.END)
+            netpay_entry.insert(0,str(netamount_10))
+            netpay_entry.config(state=original_state)
+            
+            #text reduction
+            df=pd.read_csv("D:/Full Stack Development/Final Project/FrontEnd/DataBase/CTI.csv")
+            print(df)
+            print("Tex Reduction logic")
+            text_reduction = text_reduction(df, inr_amount)
+            print(text_reduction)
+            text_reduction = round(text_reduction) 
+            textvariable_entry.config(state=tk.NORMAL)
+            textvariable_entry.delete(0, tk.END)
+            textvariable_entry.insert(0,str(text_reduction))
+            textvariable_entry.config(state=original_state)
+            generate_button.config(state=tk.NORMAL)
+            
+        else:
+            #Handle case when employee is not found.
+            original_state = amount_entry.cget("state")
+            amount_entry.config(state=tk.NORMAL)
+            amount_entry.delete(0, tk.END)
+            amount_entry.insert(0, "Employee Not Found")
+            amount_entry.config(state=original_state)
+
+
+    except FileNotFoundError:
+        messagebox.showerror("Error", "Excel file not found.")
+    except ValueError: #For non-integer employee IDs
+        messagebox.showerror("Error", "Invalid Employee ID. Please enter a number.")
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred: {e}")
+
+
+employee_name = None
+def generate_payrole(search_entry_generate, abbreviated_month_name,current_year,generate_frame,share_button):
+    #global employee_name,abbreviated_month_name,current_year,
+    employee_id = search_entry_generate.get()
+
+    try:
+        # Load employee data to get the employee name
+        df = pd.read_excel('D:/Full Stack Development/Final Project/FrontEnd/DataBase/Employee_Search_xlrd.xlsx')
+        employee_data = df[df['Employee ID'] == employee_id]
+        if employee_data.empty:
+            messagebox.showerror("Error", "Employee ID not found.")
+            return
+        
+        global employee_name
+        employee_name = employee_data.iloc[0, 1]  # Get employee name from the 2nd column
+        
+        wb = openpyxl.load_workbook("D:/Full Stack Development/Final Project/FrontEnd/DataBase/generate_payrole.xlsx")
+        sheet = wb.active
+
+        # Check if the employee ID and month already exist
+        for row in range(2, sheet.max_row + 1):  # Start from row 2 (header is row 1)
+            existing_employee_id = sheet.cell(row=row, column=1).value
+            existing_month = sheet.cell(row=row, column=5).value
+
+            if str(existing_employee_id) == employee_id and existing_month == abbreviated_month_name:
+                messagebox.showerror("Error", f"Payroll already generated for this employee on {abbreviated_month_name} {current_year}")
+                return  # Exit the function if payroll already exists
+
+        # Build the default filename
+        global default_filename
+        default_filename = f"{employee_name}_Payroll_{abbreviated_month_name}_{current_year}.pdf"
+
+        # Open the save file dialog with the default filename
+        filepath = filedialog.asksaveasfilename(
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
+            initialfile=default_filename
+        )
+
+        if filepath:
+            c = canvas.Canvas(filepath, pagesize=letter)
+
+            c.setFont("Helvetica-Bold", 16)
+            c.drawString(100, 780, "Employee Details Report")
+
+            c.setFont("Helvetica", 12)
+            c.drawString(100, 740, f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+            # Add employee specific data to the PDF.
+            c.drawString(100, 720, f"Employee Name: {employee_name}")
+            c.drawString(100, 700, f"Employee ID: {employee_id}")
+            c.drawString(100, 680, f"Month: {abbreviated_month_name}")
+            c.drawString(100, 660, f"Salary: {netamount_10}")
+            
+
+            c.save()
+
+            # Insert the column name (only if the sheet is empty)
+            if sheet.max_row == 1:
+                sheet.cell(row=1, column=1).value = "Employee ID"
+                sheet.cell(row=1, column=2).value = "Amount"
+                sheet.cell(row=1, column=3).value = "Reduce"
+                sheet.cell(row=1, column=4).value = "Net pay"
+                sheet.cell(row=1, column=5).value = "Month"
+                sheet.cell(row=1, column=6).value = "Year"
+
+            totalrow = sheet.max_row
+
+            # Insert the data in the sheet
+            sheet.cell(row=totalrow + 1, column=1).value = employee_id
+            sheet.cell(row=totalrow + 1, column=2).value = payrole_month
+            sheet.cell(row=totalrow + 1, column=3).value = "10%"
+            sheet.cell(row=totalrow + 1, column=4).value = netamount_10
+            sheet.cell(row=totalrow + 1, column=5).value = abbreviated_month_name
+            sheet.cell(row=totalrow + 1, column=6).value = current_year
+            wb.save("D:/Full Stack Development/Final Project/FrontEnd/DataBase/generate_payrole.xlsx")
+
+            # Display success message box
+            messagebox.showinfo("Success", "Payroll generated successfully!")
+            #share_button.config(state=tk.NORMAL)
+            share_button.config(state=tk.NORMAL)
+
+    except FileNotFoundError:
+        messagebox.showerror("Error", "Payroll file or employee data file not found.")
+    except Exception as e:
+        messagebox.showerror("Error", f"An error occurred: {e}")
+   
+        
+def send_payroll_email(emailid, subject, text,search_entry_generate, abbreviated_month_name,current_year):
+    print(employee_name)
+    print(abbreviated_month_name)
+    print(current_year)
+    mypdf=default_filename
+    #mypdf="C:/Users/saravanan/Desktop/Jade Hu_Payroll_March_2025.pdf"
+    
+    mypdf=f"C:/Users/saravanan/Desktop/{employee_name}_Payroll_{abbreviated_month_name}_{current_year}.pdf"
+    print(mypdf)
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = "tt3559201@gmail.com"  # Your email
+        msg['To'] = emailid
+        msg['Subject'] = subject
+
+        # Attach text body
+        msg.attach(MIMEText(text, 'plain'))
+
+        # Attach PDF
+        try:
+            with open(mypdf, 'rb') as f:
+                pdf_attachment = MIMEApplication(f.read(), _subtype="pdf")
+                pdf_attachment.add_header('Content-Disposition', 'attachment', filename=mypdf)
+                msg.attach(pdf_attachment)
+        except FileNotFoundError:
+            #return f"Error: PDF file '{mypdf}' not found."
+            print(f"Error: PDF file '{mypdf}' not found.")
+
+        # Send the email
+        with smtplib.SMTP('smtp.gmail.com', 587) as s:
+            s.starttls()
+            s.login("tt3559201@gmail.com", "shukbfipigbnwwjt")  # Replace with credentials
+            s.send_message(msg)
+
+        messagebox.showinfo("Sucess", "Mail Sent Succesfully")
+        return "Mail Sent with PDF"
+        print("Mail Sent with PDF")
+        
+
+    except Exception as e:
+        messagebox.showinfo("Error", "Error Occured")
+        return f"Error sending mail: {e}"
+        print(f"Error sending mail: {e}")
+        
+
+def get_email_suggestions(input_prefix, employee_emails):
+    if not input_prefix:
+        return []
+
+    suggestions = []
+    scores = []
+    for email in employee_emails:
+        if not email:
+            continue
+        score = fuzz.partial_ratio(input_prefix.lower(), email.lower())
+        if score > 50:  # Adjust threshold as needed
+            suggestions.append(email)
+            scores.append(score)
+
+    # Sort the suggestions by score.
+    suggestions_and_scores = list(zip(suggestions, scores))
+    suggestions_and_scores.sort(key=lambda x: x[1], reverse=True)
+    sorted_suggestions = [x[0] for x in suggestions_and_scores]
+
+    return list(dict.fromkeys(sorted_suggestions)) #remove dups.
+
+def update_dropdown(event, email_entry, suggestion_listbox, employee_emails):
+    
+    input_prefix = email_entry.get()
+    suggestions = get_email_suggestions(input_prefix, employee_emails)
+
+    suggestion_listbox.delete(0, tk.END)  # Clear previous suggestions
+    for suggestion in suggestions:
+        suggestion_listbox.insert(tk.END, suggestion)
+
+    if suggestions:
+        suggestion_listbox.place(x=email_entry.winfo_x(), y=email_entry.winfo_y() + email_entry.winfo_height())
+        suggestion_listbox.config(height=min(len(suggestions), 5))  # Limit displayed height
+    else:
+        suggestion_listbox.place_forget()
+
+def select_suggestion(event, email_entry, suggestion_listbox):
+    """Inserts the selected suggestion into the entry field."""
+    selected_index = suggestion_listbox.curselection()
+    if selected_index:
+        selected_email = suggestion_listbox.get(selected_index[0])
+        email_entry.delete(0, tk.END)
+        email_entry.insert(0, selected_email)
+        suggestion_listbox.place_forget()  # Hide the listbox
+    # ... (same as before)
+
+
+
+import pickle
+
+def salary_prediction(job_title, department, gender, age, experience_yrs):
+    print(job_title, department, gender, age, experience_yrs)
+    try:
+        df = pd.read_csv("D:/Full Stack Development/Final Project/FrontEnd/DataBase/Employee_Search.csv", encoding="windows-1252")
+    except UnicodeDecodeError as e:
+        print(f"Error decoding CSV: {e}")
+        print("Please check the file's encoding and try again.")
+        return "Error: Unable to process data."  # Return an error message
+
+    df = df.dropna()
+
+    def convert_salary_to_inr(salary_str):
+        try:
+            salary_usd = float(salary_str.replace('$', '').replace(',', ''))
+            inr_conversion_rate = 83.3
+            salary_inr = salary_usd * inr_conversion_rate
+            return salary_inr
+        except ValueError:
+            return np.nan
+
+    df['Annual Salary'] = df['Annual Salary'].apply(convert_salary_to_inr)
+    df = df.dropna(subset=['Annual Salary'])
+
+    categorical_cols = ['Job Title', 'Department', 'Gender']
+    encoders = {}
+    print(job_title)
+    print(department)
+    print(gender)
+    print(age)
+    print(experience_yrs)
+    for col in categorical_cols:
+        le = LabelEncoder()
+        df[col] = le.fit_transform(df[col])
+        encoders[col] = le
+
+    X = df[['Job Title', 'Department', 'Gender', 'Age', 'experience_yrs']]
+    y_salary = df['Annual Salary']
+
+    numerical_cols = ['Age', 'experience_yrs']
+    scaler = StandardScaler()
+    X.loc[:, numerical_cols] = scaler.fit_transform(X[numerical_cols]).astype(X[numerical_cols].dtypes)
+
+    X_train, X_test, y_salary_train, y_salary_test = train_test_split(
+        X, y_salary, test_size=0.2, random_state=42
+    )
+
+    salary_model = keras.Sequential([
+        Input(shape=(X_train.shape[1],)),
+        keras.layers.Dense(128, activation='relu'),
+        keras.layers.Dense(64, activation='relu'),
+        keras.layers.Dense(32, activation='relu'),
+        keras.layers.Dense(1)
+    ])
+    salary_model.compile(optimizer='adam', loss='mse', metrics=['mae'])
+
+    salary_model.fit(X_train, y_salary_train, epochs=100, verbose=0)
+
+    salary_loss, salary_mae = salary_model.evaluate(X_test, y_salary_test, verbose=0)
+    print(f"Salary Model Loss (MSE): {salary_loss}")
+    print(f"Salary Model Mean Absolute Error (MAE): {salary_mae}")
+
+    def predict_salary_inr(job_title, department, gender, age, experience_yrs, scaler, encoders, salary_model):
+        try:
+            job_title_encoded = encoders['Job Title'].transform([job_title])[0]
+            department_encoded = encoders['Department'].transform([department])[0]
+            gender_encoded = encoders['Gender'].transform([gender])[0]
+
+            input_data = pd.DataFrame([[job_title_encoded, department_encoded, gender_encoded, age, experience_yrs]],
+                                        columns=['Job Title', 'Department', 'Gender', 'Age', 'experience_yrs'])
+
+            numerical_cols = ['Age', 'experience_yrs']
+            scaled_data = scaler.transform(input_data[numerical_cols])
+
+            for i, col in enumerate(numerical_cols):
+                input_data[col] = scaled_data[:, i].astype(input_data[col].dtypes)
+
+            predicted_salary_inr = salary_model.predict(input_data)[0][0]
+            return predicted_salary_inr
+        except KeyError as e:
+            print(f"Prediction Error: Unknown categorical value: {e}")
+            return None
+        except Exception as e:
+            print(f"An error occurred during prediction: {e}")
+            return None
+
+    try:
+        predicted_salary_inr = predict_salary_inr(job_title, department, gender, int(age), int(experience_yrs), scaler, encoders, salary_model)
+        predicted_salary_inr = round(predicted_salary_inr)
+        if predicted_salary_inr is not None:
+            predicted_salary_inr_int = int(predicted_salary_inr)
+            predicted_salary_inr_words = num2words.num2words(predicted_salary_inr_int, lang='en_IN')
+            print("*********************************************************************")
+            print(predicted_salary_inr_words + " Indian Rupees")
+        else:
+            return "Error: Could not predict salary due to input issues."
+    except ValueError as e:
+        print(f"Prediction Error: Invalid input for age or experience: {e}")
+        return "Error: Invalid input for age or experience."
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+        return "Error: An unexpected error occurred during prediction."
+
+    salary_model.save("salary_model.keras")
+
+    with open('scaler.pkl', 'wb') as f:
+        pickle.dump(scaler, f)
+    with open('encoders.pkl', 'wb') as f:
+        pickle.dump(encoders, f)
+    
+    print("Model trained with Mean Absolute Error:",salary_mae) # 
+    return predicted_salary_inr , predicted_salary_inr_words
+
+        
+def calculate_average_by_month_year(csv_file, month_column="Month", year_column="Year", total_employees=1500):
+    """
+    Calculates the average for each month, grouped by year, from a CSV file.
+    """
+    try:
+        df = pd.read_csv(csv_file)
+        df[month_column] = df[month_column].astype(str).str.lower()
+        df[year_column] = df[year_column].astype(str)
+        grouped = df.groupby([year_column, month_column]).size()
+        average_by_month_year = {}
+        for (year, month), count in grouped.items():
+            if year not in average_by_month_year:
+                average_by_month_year[year] = {}
+            average_by_month_year[year][month] = (count / total_employees) * 100
+        return average_by_month_year
+    except FileNotFoundError:
+        return {"error": f"File '{csv_file}' not found."}
+    except KeyError:
+        return {"error": f"Column '{month_column}' or '{year_column}' not found in file."}
+    except Exception as e:
+        return {"error": f"An error occurred: {e}"}
+    
+
+def exit_organization_prediction(job_title,department,gender,age,experience,salary,bonus):
+    try:
+        df = pd.read_csv("D:/Full Stack Development/Final Project/FrontEnd/DataBase/Employee_Search.csv",encoding="windows-1252") # corrected file extension
+    except FileNotFoundError:
+        print("Error: Employee_Search.csv not found.")
+
+
+    # Handle missing values (replace NaN with a placeholder)
+    #df = df.fillna()
+
+    # Remove '$' from 'Annual Salary' and '%' from 'Bonus %', then convert to numeric
+    df['Annual Salary'] = df['Annual Salary'].str.replace('$', '', regex=False).str.replace(',', '', regex=False).astype(float)
+    df['Bonus %'] = df['Bonus %'].str.replace('%', '', regex=False).astype(float)
+
+    # Prepare the data for the decision tree classifier
+    if 'oranizationexit' not in df.columns:
+        print("Error: 'organization_exit' column not found in the dataset.")
+
+
+    features = [
+        "Job Title",
+        "Department",
+        "Gender",
+        "Age",
+        "Annual Salary",
+        "Bonus %",
+        "experience_yrs",
+    ]
+
+    X = df[features].to_dict(orient="records")
+    y = df["oranizationexit"]
+
+    # Vectorize the categorical features
+    vectorizer = DictVectorizer(sparse=False)
+    X_vectorized = vectorizer.fit_transform(X)
+
+    # Split the data into training and testing sets
+    X_train, X_test, y_train, y_test = train_test_split(
+        X_vectorized, y, test_size=0.2, random_state=42
+    )
+
+    # Train the decision tree classifier
+    classifier = DecisionTreeClassifier(random_state=42)
+    classifier.fit(X_train, y_train)
+
+    # Make predictions on the test set
+    y_pred = classifier.predict(X_test)
+
+    # Evaluate the model
+    accuracy = accuracy_score(y_test, y_pred)
+    #print(f"Accuracy: {accuracy:.4f}")
+
+    # Example prediction for a new employee (using the same feature structure)
+    new_employee = {
+        "Job Title": job_title, #get()
+        "Department": department,
+        "Gender": gender,
+        "Age": age,
+        "Annual Salary": salary,  # Removed '$'
+        "Bonus %": bonus,  # Removed '%'
+        "experience_yrs": experience
+    }
+
+    new_employee_vectorized = vectorizer.transform([new_employee])
+    prediction = classifier.predict(new_employee_vectorized)
+    if prediction==0:
+        return "Not Exit"
+    return "Exit"
+    print(f"Prediction for new employee: {prediction[0]}")
+    
+
